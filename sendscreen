@@ -173,7 +173,7 @@ class Receiver:
         conn.settimeout(5.)
         try:
             warn('  recv()...')
-            zbuf = conn.recv(1000_000)
+            zbuf = conn.recv(10_000_000)
         except socket.timeout:
             return None
         warn('  received frame ({} bytes)...'.format(len(zbuf)))

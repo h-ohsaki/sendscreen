@@ -19,7 +19,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     url='https://github.com/h-ohsaki/sendscreen.git',
     packages=setuptools.find_packages(),
-    install_requires=['Xlib', 'pygame'],
+    install_requires=['Xlib', 'pygame', 'perlcompat'],
     scripts=['sendscreen'],
     classifiers=[
         'Programming Language :: Python :: 3',

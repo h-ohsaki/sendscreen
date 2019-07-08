@@ -67,7 +67,7 @@ the frame is uncompressed and displayed on the screen of the receiver.
 # REQUIREMENTS
 
   **sendscreen** runs on X Window System.  It uses Xlib and pygame modules as
-    well as several Python standard modules.  **sendsceeen** asumes a TrueType
+    well as several Python standard modules.  **sendsceeen** assumes a TrueType
     font is available at `/usr/share/fonts/truetype/freefont/FreeSans.ttf',
     which is included in fonts-freefont-ttf package in Debian GNU/Linux
     although **sendscreen** works with any TrueType font.

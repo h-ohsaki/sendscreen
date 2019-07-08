@@ -14,7 +14,7 @@ setuptools.setup(
     version='1.0',
     author='Hiroyuki Ohsaki',
     author_email='ohsaki@lsnl.jp',
-    description='',
+    description='Display local desktop on remove host over LAN without VGA/HDMI cable',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/h-ohsaki/sendscreen.git',

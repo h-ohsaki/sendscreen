@@ -1,6 +1,6 @@
 # NAME
 
-sendscreen - Display local desktop on remove host without VGA/HDMI cable
+sendscreen - Display local desktop on remove host over LAN without VGA/HDMI cable
 
 # SYNOPSIS
 

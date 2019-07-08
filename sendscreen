@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 #
-# Display local desktop on remove host without VGA/HDMI cable
+# Display local desktop on remove host without VGA/HDMI cable.
 # Copyright (c) 2019, Hiroyuki Ohsaki.
 # All rights reserved.
-#
-# $Id: pysendscreen,v 1.24 2019/07/07 15:40:21 ohsaki Exp $
 #
 
 # This program is free software: you can redistribute it and/or modify
@@ -31,13 +29,13 @@ from perlcompat import die, warn, getopts
 import pygame
 import pygame.gfxdraw
 import pygame.transform
-import tbdump
 
 POINTER_COLOR = 255, 255, 0, 128
 POINTER_SIZE = 10
 FONT_NAME = '/etc/alternatives/fonts-japanese-gothic.ttf'
 FONT_SIZE = 20
 LABEL_COLOR = 255, 255, 255, 128
+BLANK_COLOR = 0, 0, 255, 255
 
 def usage():
     die("""\
@@ -70,9 +68,11 @@ class Frame:
         self.zbuf = None
 
     def compose_header(self):
-        astr = '{} {} {} {} {} {}\n'.format(self.user, self.hostname,
-                                            self.width, self.height,
-                                            self.pnt_x, self.pnt_y)
+        """Compose a frame header, which is composed of field values separated
+        by spaces and terminated by the newline."""
+        astr = '{} {} {} {} {} {} {}\n'.format('P0', self.user, self.hostname,
+                                               self.width, self.height,
+                                               self.pnt_x, self.pnt_y)
         return bytes(astr, encoding='utf-8')
 
     def dump_root_window(self):
@@ -87,25 +87,35 @@ class Frame:
         return buf
 
     def capture(self):
+        """Capture the current desktop and store the header and the image in
+        HEADER and IMG attributes, respectively.  Zlib-compressed data is also
+        stored in ZBUF attribute."""
         self.header = self.compose_header()
-        # zlib-compressed raw RGBX pixels
         self.img = self.dump_root_window()
         self.zbuf = zlib.compress(self.header + self.img)
 
     def load(self, zbuf):
+        """Decode zlib-compressed data ZBUF and update object attributes
+        (PROTO, USER, HOSTNAME, WIDTH, HEIGHT, PNT_X, PNT_Y, HEADER, and
+        IMG)."""
         try:
             buf = zlib.decompress(zbuf)
         except zlib.error:
+            warn('zlib decompression failed.  skipping...')
             return None
         try:
             offset = buf.index(b'\n') + 1
         except ValueError:
+            warn('invalid header.  skipping...')
             return None
         self.header = buf[:offset - 1]
         self.img = buf[offset:]
+        self.zbuf = zbuf
 
         # parse frame header
-        user, hostname, width, height, pnt_x, pnt_y = self.header.split(b' ')
+        proto, user, hostname, width, height, pnt_x, pnt_y = self.header.split(
+            b' ')
+        self.proto = proto
         self.user = user
         self.hostname = hostname
         self.width = int(width)
@@ -120,35 +130,21 @@ class Sender:
         self.width = width
         self.height = height
 
-    def connect(self):
-        warn('connecting to {}:{}...'.format(self.server, self.port))
-        self.sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sk.connect((self.server, self.port))
-
-    def send(self, frame):
-        warn('  sending frame ({} bytes)...'.format(len(frame.zbuf)))
-        try:
-            warn('  sendall()...')
-            self.sk.sendall(frame.zbuf)
-        except ConnectionResetError:
-            pass
-
     def mainloop(self):
         """Repeatedly send the rectangle of the current desktop to remote host
-        via TCP."""
+        using UDP."""
         user = os.getenv('USER')
         hostname = socket.gethostname()
         xscreen = display.Display().screen()
+        self.sk = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         while True:
-            try:
-                self.connect()
-            except ConnectionRefusedError:
-                time.sleep(1)  # retry after delay
-                continue
             frame = Frame(self.width, self.height, user, hostname)
             frame.pnt_x, frame.pnt_y = pointer_geometry(xscreen)
             frame.capture()
-            self.send(frame)
+            warn('sending frame ({:,} bytes) to {}:{}...'.format(
+                len(frame.zbuf), self.server, self.port))
+            addr = self.server, self.port
+            self.sk.sendto(frame.zbuf, addr)
 
 class Receiver:
     def __init__(self, port=5000, width=800, height=600):
@@ -158,8 +154,10 @@ class Receiver:
         self.ndrawn = 0
 
     def init_display(self):
+        """Initialize display settings and create a window for display."""
         warn('initializing display...')
         # disable screen saver and display power management
+        # FIXME: restore power management settings
         os.system('xset s off')
         os.system('xset -dpms')
 
@@ -169,20 +167,25 @@ class Receiver:
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.font = pygame.font.Font(FONT_NAME, FONT_SIZE)
 
-    def recv(self, conn):
-        conn.settimeout(5.)
+    def recv(self):
+        """Wait incoming frame data and decode the frame.  Return the frame
+        decoded"""
+        self.sk.settimeout(3.)
         try:
-            warn('  recv()...')
-            zbuf = conn.recv(10_000_000)
+            warn('waiting frame...')
+            zbuf, addr = self.sk.recvfrom(10_000_000)
         except socket.timeout:
             return None
-        warn('  received frame ({} bytes)...'.format(len(zbuf)))
+        host, port = addr
+        warn('frame received ({:,} bytes) from {}:{}...'.format(
+            len(zbuf), host, port))
         frame = Frame()
         frame.load(zbuf)
         return frame
 
     def draw_img(self, screen, img, width, height):
-        """Draw an image IMG at the origin (0, 0) of the current window."""
+        """Draw an image IMG with width WIDTH and height HEIGHT at the origin
+        (0, 0) on screen SCREEN."""
         try:
             # convert RGBX image to pygame.Surface object
             img = pygame.image.fromstring(img, (width, height), 'RGBX')
@@ -191,27 +194,27 @@ class Receiver:
         screen.blit(img, (0, 0))
 
     def draw_pointer(self, screen, x, y):
-        """Draw a virtual pointer at (X, Y)."""
+        """Draw a virtual pointer at (X, Y) on screen SCREEN."""
         pygame.gfxdraw.filled_ellipse(screen, x, y, POINTER_SIZE, POINTER_SIZE,
                                       POINTER_COLOR)
 
     def draw_label(self, screen, font, label):
-        """Draw a text LABEL using font FONT at the upper-right corner of the
-        screen SCREEN."""
+        """Draw a text LABEL using font FONT around the upper-right corner of
+        the screen SCREEN."""
         text = font.render(label, 1, LABEL_COLOR)
         x = screen.get_width() - text.get_width() - FONT_SIZE // 2
         y = FONT_SIZE // 2
         screen.blit(text, (x, y))
 
     def draw(self, frame):
-        """Draw a frame FRAME at the origin (0, 0) of the current window."""
+        """Draw frame FRAME at the origin (0, 0) of the current window."""
         self.screen.fill((0, 0, 0))
         self.draw_img(self.screen, frame.img, frame.width, frame.height)
         # blink the pointer as keep-alive indicator
         if self.ndrawn % 2 == 0:
             self.draw_pointer(self.screen, frame.pnt_x, frame.pnt_y)
-        self.draw_label(self.screen, self.font,
-                        frame.user + b'@' + frame.hostname)
+        label = frame.user + b'@' + frame.hostname
+        self.draw_label(self.screen, self.font, label)
         pygame.display.update()
         self.ndrawn += 1
 
@@ -219,15 +222,15 @@ class Receiver:
         """Repeatedly receive frames from a client, and display the frame in
         the window."""
         self.init_display()
-        self.sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sk.bind(('', self.port))  # all available interfaces
-        self.sk.listen()
         while True:
-            conn, addr = self.sk.accept()
-            warn('connected from {}...'.format(addr))
-            frame = self.recv(conn)
+            frame = self.recv()
             if frame and frame.img:
                 self.draw(frame)
+            else:
+                self.screen.fill(BLANK_COLOR)
+                pygame.display.update()
 
 def main():
     opt = getopts('vrs:p:W:H:') or usage()

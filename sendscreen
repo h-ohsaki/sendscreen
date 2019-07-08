@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Display local desktop on remove host without VGA/HDMI cable.
+# Display local desktop on remove host over LAN without VGA/HDMI cable.
 # Copyright (c) 2019, Hiroyuki Ohsaki.
 # All rights reserved.
 #

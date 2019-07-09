@@ -73,7 +73,7 @@ the frame is uncompressed and displayed on the screen of the receiver.
 
 - -F rate
 
-  Maximum frate rate is limited by *rate* (default: 10 [frame/s])
+  Maximum frate rate is limited by *rate* (default: 5 [frame/s])
 
 # REQUIREMENTS
 

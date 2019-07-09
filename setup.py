@@ -11,7 +11,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='sendscreen',
-    version='1.0',
+    version='1.4',
     author='Hiroyuki Ohsaki',
     author_email='ohsaki@lsnl.jp',
     description='Display local desktop on remove host over LAN without VGA/HDMI cable',
@@ -19,7 +19,7 @@ setuptools.setup(
     long_description_content_type='text/markdown',
     url='https://github.com/h-ohsaki/sendscreen.git',
     packages=setuptools.find_packages(),
-    install_requires=['Xlib', 'pygame', 'perlcompat'],
+    install_requires=['Xlib', 'pygame', 'perlcompat', 'rgbconv'],
     scripts=['sendscreen'],
     classifiers=[
         'Programming Language :: Python :: 3',

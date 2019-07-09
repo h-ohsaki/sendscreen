@@ -5,13 +5,15 @@ sendscreen - Display local desktop on remove host over LAN without VGA/HDMI cabl
 # SYNOPSIS
 
 ```
-sendscreen [-vr] [-s host] [-p port] [-w width] [-h height]
+sendscreen [-vrf] [-s host] [-p port] [-W width] [-H height] [-F #]
   -v       verbose mode
   -r       receiver mode
-  -s host  specify receiver hostname/IP address
+  -f       full speed mode (no frame rate limit)
+  -s host  specify receiver hostname/address
   -p port  port number
-  -w #     screen width (default: 800)
-  -h #     screen height (default: 600)
+  -W #     screen width (default: 800 [pixel])
+  -H #     screen height (default: 600 [pixel])
+  -F #     maximum frame rate (default: 10 [frame/second])
 ```
 
 # DESCRIPTION
@@ -37,6 +39,26 @@ invoked with `-r` option, **sendscreen** works as a *receiver*.  It waits for
 incoming frame data over LAN.  When it receives the frame data from a sender,
 the frame is uncompressed and displayed on the screen of the receiver.
 
+# USAGE
+
+On a computer connected with the LCD projector:
+
+```sh
+sendscreen -r
+```
+
+On a client computer:
+
+```sh
+sendscreen -s server_name
+```
+where *server_name* is the hostname or the IP address of the receiver.
+
+**sendscreen** uses the UDP protocol with port 5000 by default.  Please make
+sure that the sender reaches the port 5000 of the receiver using the UDP
+protocol; i.e., disalbe the network firewall and packet filtering (e.g.,
+`iptagles -F; iptables -X`).
+
 # OPTIONS
 
 - -v
@@ -48,6 +70,11 @@ the frame is uncompressed and displayed on the screen of the receiver.
 
   Receiver mode.  **sendscreen** receives frames from a sender in your LAN.
 
+- -f
+
+  Full throttle mode.  **sendscreen** tries to send frames as fast as
+  possible.
+
 - -s host
 
   Specify receiver's hostname or IP address.
@@ -58,19 +85,24 @@ the frame is uncompressed and displayed on the screen of the receiver.
 
 - -w width
 
-  Specify the screen width (default: 800).
+  Specify the screen width (default: 800 [pixel]).
 
 - -h height
 
-  Specify the screen height (default: 600).
+  Specify the screen height (default: 600 [pixel]).
+
+- -F rate
+
+  Maximum frate rate is limited by *rate* (default: 5 [frame/s])
 
 # REQUIREMENTS
 
-  **sendscreen** runs on X Window System.  It uses Xlib and pygame modules as
-    well as several Python standard modules.  **sendsceeen** assumes a TrueType
-    font is available at `/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-    which is included in fonts-freefont-ttf package in Debian GNU/Linux
-    although **sendscreen** works with any TrueType font.
+**sendscreen** runs on X Window System.  It uses Xlib, pygame, and rgbconv
+modules as well as several Python standard modules.  **sendsceeen** assumes a
+TrueType font is available at
+`/usr/share/fonts/truetype/freefont/FreeSans.ttf', which is included in
+*fonts-freefont-ttf* package in Debian GNU/Linux although **sendscreen** works
+with any TrueType font.
 
 # INSTALLATION
 

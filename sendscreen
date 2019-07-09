@@ -46,14 +46,15 @@ LABEL_COLOR = 255, 255, 255, 128
 
 def usage():
     die("""\
-usage: {} [-vr] [-s host] [-p port] [-W width] [-H height] [-F #]
+usage: {} [-vrf] [-s host] [-p port] [-W width] [-H height] [-F #]
   -v       verbose mode
   -r       receiver mode
+  -f       full speed mode (no frame rate limit)
   -s host  specify receiver hostname/address
   -p port  port number
   -W #     screen width (default: 800 [pixel])
   -H #     screen height (default: 600 [pixel])
-  -F #     maximum frame rate (default: 10 [frame/second])
+  -F #     maximum frame rate (default: 5 [frame/second])
 """.format(sys.argv[0]))
 
 class FrameError(Exception):
@@ -81,15 +82,16 @@ def dump_root_window(width, height):
 
 class Frame:
     def __init__(self, width=800, height=600, label='NO LABEL'):
+        self.type_ = 0
+        self.size = None
         self.width = width
         self.height = height
-        self.label = label
         self.pnt_x = None
         self.pnt_y = None
-        self.size = None
+        self.label = label
         self.img = None
 
-    def header(self, size):
+    def header(self, size, type=None):
         """Compose a 48-byte frame header.  The payload size must be specified
         by SIZE.
 
@@ -105,9 +107,12 @@ class Frame:
         pnt_y       2       pointer y (short)
         label       28
         """
+        if type is None:
+            type = self.type_
         label = bytes(self.label, encoding='utf-8')
-        return struct.pack('4s Bxxx I HH HH 28s', b'SSCR', 0, size, self.width,
-                           self.height, self.pnt_x, self.pnt_y, label)
+        return struct.pack('4s Bxxx I HH HH 28s', b'SSCR', type, size,
+                           self.width, self.height, self.pnt_x, self.pnt_y,
+                           label)
 
     def parse_header(self, buf):
         """Parse byte string BUF and store the header values in object
@@ -142,11 +147,21 @@ class Frame:
             raise FrameError('decompression failed.')
         self.size = len(zimg)
 
-    def message(self):
-        """Return the message composed of the header and the payload
-        (Zlib-compressed frame image)."""
+    def full_message(self):
+        """Compose and return type-0 (full image) message composed of the
+        header and the payload (Zlib-compressed frame image)."""
         zimg = zlib.compress(self.img)
         header = self.header(len(zimg))
+        return header + zimg
+
+    def delta_message(self, last_img):
+        """Compose and return type-1 (delta image) message composed of the
+        header and the payload (Zlib-compressed delta frame image)."""
+        # create a copy to avoid changing the original
+        delta_img = bytes(bytearray(self.img))
+        rgbconv.sub_bytes(delta_img, last_img)
+        zimg = zlib.compress(delta_img)
+        header = self.header(len(zimg), type=1)
         return header + zimg
 
 class Sender:
@@ -162,6 +177,8 @@ class Sender:
         self.height = height
         self.fps = fps
         self.last_display = time.time()
+        self.last_img = None
+        self.nsent = 0
 
     def compose_label(self):
         """Generate a label displayed on the screen."""
@@ -169,8 +186,30 @@ class Sender:
         hostname = socket.gethostname()
         return '{} @ {}'.format(user, hostname)
 
+    def build_message(self, frame):
+        """Compose a message composed of the header and the payload."""
+        every_5sec = self.nsent % (self.fps * 5) == 0
+        if self.last_img and not every_5sec:
+            msg = frame.delta_message(self.last_img)
+        else:
+            msg = frame.full_message()
+        self.last_img = frame.img
+        return msg
+
+    def send_message(self, msg):
+        """Send a message MSG via UDP.  If the message is larger than
+        MAX_SEGMENT_SIZE, it will be split into several fragments."""
+        addr = self.server, self.port
+        debug('sending message ({:,} bytes) to {}:{}...'.format(
+            len(msg), *addr))
+        for i in range(0, len(msg), MAX_SEGMENT_SIZE):
+            self.sk.sendto(msg[i:i + MAX_SEGMENT_SIZE], addr)
+        self.nsent += 1
+
     def sync(self):
         """Adjust the timing to conform the specified frame rate."""
+        if not self.fps:
+            return
         delta = 1 / self.fps
         current_time = time.time()
         elapsed = current_time - self.last_display
@@ -186,12 +225,8 @@ class Sender:
         while True:
             frame = Frame(width=self.width, height=self.height, label=label)
             frame.capture_image()
-            msg = frame.message()
-            addr = self.server, self.port
-            debug('sending message ({:,} bytes) to {}:{}...'.format(
-                len(msg), *addr))
-            for i in range(0, len(msg), MAX_SEGMENT_SIZE):
-                self.sk.sendto(msg[i:i + MAX_SEGMENT_SIZE], addr)
+            msg = self.build_message(frame)
+            self.send_message(msg)
             self.sync()
 
 class Receiver:
@@ -200,45 +235,21 @@ class Receiver:
         self.width = width
         self.height = height
         self.ndrawn = 0
+        self.last_img = None
+
+    def disable_screensaver(self):
+        """Disable screen saver and display power management."""
+        # FIXME: restore settings on exit
+        os.system('xset s off')
+        os.system('xset -dpms')
 
     def init_display(self):
         """Initialize display settings and create a window for display."""
         debug('initializing display...')
-        # disable screen saver and display power management
-        # FIXME: restore power management settings
-        os.system('xset s off')
-        os.system('xset -dpms')
-
-        # initialize pygame and create a window
         pygame.display.init()
         pygame.font.init()
         self.screen = pygame.display.set_mode((self.width, self.height))
         self.font = pygame.font.Font(FONT_NAME, FONT_SIZE)
-
-    def recv(self):
-        """Receive an incoming message and decode the message.  Return the
-        frame decoded"""
-        frame = Frame()
-        zimg = None
-        addr = None, None
-        while True:
-            self.sk.settimeout(1.)
-            try:
-                debug('waiting incoming UDP packet...')
-                buf, addr = self.sk.recvfrom(MAX_SEGMENT_SIZE)
-            except socket.timeout:
-                return False
-            if b'SSCR' in buf:
-                frame.parse_header(buf[:HEADER_SIZE])
-                zimg = buf[HEADER_SIZE:]
-            elif zimg:
-                zimg += buf
-            if len(zimg) >= frame.size:
-                break
-        debug('message received ({:,} bytes) from {}:{}...'.format(
-            len(zimg), *addr))
-        frame.store_image(zimg)
-        return frame
 
     def draw_img(self, screen, img, width, height):
         """Draw an image IMG with width WIDTH and height HEIGHT at the origin
@@ -274,22 +285,55 @@ class Receiver:
         pygame.display.update()
         self.ndrawn += 1
 
+    def recv_message(self):
+        """Receive an incoming message and decode the message.  Return the
+        frame decoded"""
+        frame = Frame()
+        zimg = None
+        addr = None, None
+        while True:
+            try:
+                debug('waiting incoming UDP datagram...')
+                buf, addr = self.sk.recvfrom(MAX_SEGMENT_SIZE)
+            except socket.timeout:
+                return False
+            if buf.startswith(b'SSCR'):
+                frame.parse_header(buf[:HEADER_SIZE])
+                zimg = buf[HEADER_SIZE:]
+            elif zimg:
+                zimg += buf
+            if len(zimg) >= frame.size:
+                break
+        debug('message received ({:,} bytes) from {}:{}...'.format(
+            len(zimg), *addr))
+        frame.store_image(zimg)
+        return frame
+
+    def decode(self, frame):
+        """Decode the image in fram FRAME if necessary."""
+        if frame.type_ == 1 and self.last_img:
+            rgbconv.add_bytes(frame.img, self.last_img)
+        self.last_img = frame.img
+
     def mainloop(self):
         """Repeatedly receive frames from a client, and display the frame in
         the window."""
+        self.disable_screensaver()
         self.init_display()
         self.sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sk.settimeout(1.)
         self.sk.bind(('', self.port))  # all available interfaces
         while True:
-            frame = self.recv()
+            frame = self.recv_message()
             if frame and frame.img:
+                self.decode(frame)
                 self.draw(frame)
             else:
                 self.screen.fill(BLANK_COLOR)
                 pygame.display.update()
 
 def main():
-    opt = getopts('vrs:p:w:h:F:') or usage()
+    opt = getopts('vrfs:p:w:h:F:') or usage()
     if opt.v:
         global DEBUG
         DEBUG = True
@@ -298,12 +342,13 @@ def main():
     port = int(opt.p) if opt.p else 5000
     width = int(opt.w) if opt.w else 800
     height = int(opt.h) if opt.h else 600
-    fps_limit = float(opt.F) if opt.F else 10
+    fps = int(opt.F) if opt.F else 5
+    fps = 100 if opt.f else fps
     if receiver_mode:
         receiver = Receiver(port, width, height)
         receiver.mainloop()
     else:
-        sender = Sender(server, port, width, height, fps=fps_limit)
+        sender = Sender(server, port, width, height, fps=fps)
         sender.mainloop()
 
 if __name__ == "__main__":

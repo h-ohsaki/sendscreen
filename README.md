@@ -5,9 +5,10 @@ sendscreen - Display local desktop on remove host over LAN without VGA/HDMI cabl
 # SYNOPSIS
 
 ```
-sendscreen [-vr] [-s host] [-p port] [-w width] [-h height] [-F #]
+sendscreen [-vrf] [-s host] [-p port] [-W width] [-H height] [-F #]
   -v       verbose mode
   -r       receiver mode
+  -f       full speed mode (no frame rate limit)
   -s host  specify receiver hostname/address
   -p port  port number
   -W #     screen width (default: 800 [pixel])
@@ -48,6 +49,11 @@ the frame is uncompressed and displayed on the screen of the receiver.
 - -r
 
   Receiver mode.  **sendscreen** receives frames from a sender in your LAN.
+
+- -f
+
+  Full throttle mode.  **sendscreen** tries to send frames as fast as
+  possible.
 
 - -s host
 

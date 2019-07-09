@@ -5,13 +5,14 @@ sendscreen - Display local desktop on remove host over LAN without VGA/HDMI cabl
 # SYNOPSIS
 
 ```
-sendscreen [-vr] [-s host] [-p port] [-w width] [-h height]
+sendscreen [-vr] [-s host] [-p port] [-w width] [-h height] [-F #]
   -v       verbose mode
   -r       receiver mode
-  -s host  specify receiver hostname/IP address
+  -s host  specify receiver hostname/address
   -p port  port number
-  -w #     screen width (default: 800)
-  -h #     screen height (default: 600)
+  -W #     screen width (default: 800 [pixel])
+  -H #     screen height (default: 600 [pixel])
+  -F #     maximum frame rate (default: 10 [frame/second])
 ```
 
 # DESCRIPTION
@@ -58,11 +59,15 @@ the frame is uncompressed and displayed on the screen of the receiver.
 
 - -w width
 
-  Specify the screen width (default: 800).
+  Specify the screen width (default: 800 [pixel]).
 
 - -h height
 
-  Specify the screen height (default: 600).
+  Specify the screen height (default: 600 [pixel]).
+
+- -F rate
+
+  Maximum frate rate is limited by *rate* (default: 10 [frame/s])
 
 # REQUIREMENTS
 

@@ -123,7 +123,7 @@ class Frame:
         self.pnt_y = pnt_y
         # FIXME: could be written simpler
         label = label.replace(b'\x00', b'')
-        self.label = str(label)
+        self.label = label.decode()
         return True
 
     def capture_image(self):

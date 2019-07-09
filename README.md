@@ -39,6 +39,26 @@ invoked with `-r` option, **sendscreen** works as a *receiver*.  It waits for
 incoming frame data over LAN.  When it receives the frame data from a sender,
 the frame is uncompressed and displayed on the screen of the receiver.
 
+# USAGE
+
+On a computer connected with the LCD projector:
+
+```sh
+sendscreen -r
+```
+
+On a client computer:
+
+```sh
+sendscreen -s server_name
+```
+where *server_name* is the hostname or the IP address of the receiver.
+
+**sendscreen** uses the UDP protocol with port 5000 by default.  Please make
+sure that the sender reaches the port 5000 of the receiver using the UDP
+protocol; i.e., disalbe the network firewall and packet filtering (e.g.,
+`iptagles -F; iptables -X`).
+
 # OPTIONS
 
 - -v
@@ -77,11 +97,12 @@ the frame is uncompressed and displayed on the screen of the receiver.
 
 # REQUIREMENTS
 
-  **sendscreen** runs on X Window System.  It uses Xlib and pygame modules as
-    well as several Python standard modules.  **sendsceeen** asumes a TrueType
-    font is available at `/usr/share/fonts/truetype/freefont/FreeSans.ttf',
-    which is included in fonts-freefont-ttf package in Debian GNU/Linux
-    although **sendscreen** works with any TrueType font.
+**sendscreen** runs on X Window System.  It uses Xlib, pygame, and rgbconv
+modules as well as several Python standard modules.  **sendsceeen** asumes a
+TrueType font is available at
+`/usr/share/fonts/truetype/freefont/FreeSans.ttf', which is included in
+*fonts-freefont-ttf* package in Debian GNU/Linux although **sendscreen** works
+with any TrueType font.
 
 # INSTALLATION
 

@@ -278,8 +278,8 @@ class Receiver:
         """Draw frame FRAME at the origin (0, 0) of the current window."""
         self.screen.fill((0, 0, 0))
         self.draw_img(self.screen, frame.img, frame.width, frame.height)
-        # blink the pointer as keep-alive indicator
-        if self.ndrawn % 2 == 0:
+        # blink the pointer every second
+        if int(time.time() * 2) % 2 == 0:
             self.draw_pointer(self.screen, frame.pnt_x, frame.pnt_y)
         self.draw_label(self.screen, self.font, frame.label)
         pygame.display.update()

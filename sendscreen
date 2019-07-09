@@ -22,6 +22,7 @@ import os
 import socket
 import struct
 import sys
+import time
 import zlib
 
 from Xlib import X, display
@@ -29,6 +30,7 @@ from perlcompat import die, warn, getopts
 import pygame
 import pygame.gfxdraw
 import pygame.transform
+import rgbconv
 
 DEBUG = False
 
@@ -44,13 +46,14 @@ LABEL_COLOR = 255, 255, 255, 128
 
 def usage():
     die("""\
-usage: {} [-vr] [-s host] [-p port] [-W width] [-H height]
+usage: {} [-vr] [-s host] [-p port] [-W width] [-H height] [-F #]
   -v       verbose mode
   -r       receiver mode
   -s host  specify receiver hostname/address
   -p port  port number
-  -W #     screen width (default: 800)
-  -H #     screen height (default: 600)
+  -W #     screen width (default: 800 [pixel])
+  -H #     screen height (default: 600 [pixel])
+  -F #     maximum frame rate (default: 10 [frame/second])
 """.format(sys.argv[0]))
 
 class FrameError(Exception):
@@ -73,10 +76,8 @@ def dump_root_window(width, height):
     xscreen = display.Display().screen()
     img = xscreen.root.get_image(0, 0, width, height, X.ZPixmap, 0xffffffff)
     # format conversion from BGRX to RGBX
-    buf = bytearray(img.data)
-    for i in range(0, width * height * 4, 4):
-        buf[i], buf[i + 2] = buf[i + 2], buf[i]  # swap red and blue
-    return buf
+    rgbconv.bgra2rgba(img.data)
+    return img.data
 
 class Frame:
     def __init__(self, width=800, height=600, label='NO LABEL'):
@@ -149,17 +150,33 @@ class Frame:
         return header + zimg
 
 class Sender:
-    def __init__(self, server='localhost', port=5000, width=800, height=600):
+    def __init__(self,
+                 server='localhost',
+                 port=5000,
+                 width=800,
+                 height=600,
+                 fps=10):
         self.server = server
         self.port = port
         self.width = width
         self.height = height
+        self.fps = fps
+        self.last_display = time.time()
 
     def compose_label(self):
         """Generate a label displayed on the screen."""
         user = os.getenv('USER')
         hostname = socket.gethostname()
         return '{} @ {}'.format(user, hostname)
+
+    def sync(self):
+        """Adjust the timing to conform the specified frame rate."""
+        delta = 1 / self.fps
+        current_time = time.time()
+        elapsed = current_time - self.last_display
+        if elapsed < delta:
+            time.sleep(delta - elapsed)
+        self.last_display = current_time
 
     def mainloop(self):
         """Repeatedly send the rectangle of the current desktop to remote host
@@ -175,6 +192,7 @@ class Sender:
                 len(msg), *addr))
             for i in range(0, len(msg), MAX_SEGMENT_SIZE):
                 self.sk.sendto(msg[i:i + MAX_SEGMENT_SIZE], addr)
+            self.sync()
 
 class Receiver:
     def __init__(self, port=5000, width=800, height=600):
@@ -271,7 +289,7 @@ class Receiver:
                 pygame.display.update()
 
 def main():
-    opt = getopts('vrs:p:w:h:') or usage()
+    opt = getopts('vrs:p:w:h:F:') or usage()
     if opt.v:
         global DEBUG
         DEBUG = True
@@ -280,11 +298,12 @@ def main():
     port = int(opt.p) if opt.p else 5000
     width = int(opt.w) if opt.w else 800
     height = int(opt.h) if opt.h else 600
+    fps_limit = float(opt.F) if opt.F else 10
     if receiver_mode:
         receiver = Receiver(port, width, height)
         receiver.mainloop()
     else:
-        sender = Sender(server, port, width, height)
+        sender = Sender(server, port, width, height, fps=fps_limit)
         sender.mainloop()
 
 if __name__ == "__main__":

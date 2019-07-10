@@ -104,6 +104,41 @@ TrueType font is available at
 *fonts-freefont-ttf* package in Debian GNU/Linux although **sendscreen** works
 with any TrueType font.
 
+# INTERNALS
+
+**sendscreen** uses its original message format for transferring an frame
+image from a sender to the receiver.  A message is composed of a 48-byte
+header and a compressed frame image.  A raw frame image is WIDTH x HEIGHT
+pixels in RGBX format, which means that the size of every pixel is 32-bit.
+
+A sender of **sendscreen** repeatedly captures its root window using Xlib's
+XGetImage in ZPixmap format.  A captured image is converted from the BGRX
+format to the RGBX format using **rgbconv** Python module.  A raw frame image
+is compressed using zlib.  A message composed of the message header and the
+compressed frame image is sent to the receiver as a series of UDP segments,
+whose maximum size is specified by MAX_SEGMENT_SIZE variable.
+
+**sendscreen** implements two transmission modes: full-image and delta-image
+modes.  In the full-image mode, a raw frame image captured by the sender is
+fully sent to the receiver.  On the contrary, in the delta-image mode, only
+the difference between the current image frame and the previous image frame is
+sent to the receiver.  In most cases, the screen of the sender is not much
+dynamic, so using the delta-image mode significantly reduces the amount of
+data transferred between the sender and the receiver.  The current
+implementation of **sendscreen** sends in the full-image mode once every 5
+seconds.
+
+The receiver of **sendscreen** continuously waits for incoming UDP datagrams.
+If it successfully receives a message from a sender, the message is decoded
+and the compressed frame image is decompressed.  The raw frame image is then
+displayed in the window of the receiver.  When the receiver receives no
+message for one second, the window of the receiver is turned blue to indicate
+*NO SIGNAL* from any sender.  Note that **sendscreen** does not require any
+authentication or handshaking, so multiple **sendscreen** senders can
+simultaneously connect to the receiver, which is very handy since the receiver
+requires no intervention from a user to switch among different **sendscreen**
+senders.
+
 # INSTALLATION
 
 ```sh

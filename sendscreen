@@ -302,7 +302,7 @@ class Receiver:
                 zimg = buf[HEADER_SIZE:]
             elif zimg:
                 zimg += buf
-            if len(zimg) >= frame.size:
+            if zimg and len(zimg) >= frame.size:
                 break
         debug('message received ({:,} bytes) from {}:{}...'.format(
             len(zimg), *addr))

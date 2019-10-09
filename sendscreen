@@ -42,7 +42,6 @@ MAX_SEGMENT_SIZE = 50000
 BLANK_COLOR = 0, 0, 255, 255
 POINTER_COLOR = 255, 255, 0, 128
 POINTER_SIZE = 10
-FONT_NAME = '/usr/share/fonts/truetype/freefont/FreeSans.ttf'
 FONT_SIZE = 20
 LABEL_COLOR = 255, 255, 255, 128
 
@@ -251,7 +250,7 @@ class Receiver:
         pygame.display.init()
         pygame.font.init()
         self.screen = pygame.display.set_mode((self.width, self.height))
-        self.font = pygame.font.Font(FONT_NAME, FONT_SIZE)
+        self.font = pygame.font.SysFont('Helvetica', FONT_SIZE)
 
     def draw_img(self, screen, img, width, height):
         """Draw an image IMG with width WIDTH and height HEIGHT at the origin

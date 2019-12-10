@@ -322,7 +322,7 @@ class Receiver:
         self.disable_screensaver()
         self.init_display()
         self.sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sk.settimeout(1.)
+        self.sk.settimeout(5.)
         self.sk.bind(('', self.port))  # all available interfaces
         while True:
             try:

@@ -325,7 +325,10 @@ class Receiver:
         self.sk.settimeout(1.)
         self.sk.bind(('', self.port))  # all available interfaces
         while True:
-            frame = self.recv_message()
+            try:
+                frame = self.recv_message()
+            except FrameError:
+                continue
             if frame and frame.img:
                 self.decode(frame)
                 self.draw(frame)

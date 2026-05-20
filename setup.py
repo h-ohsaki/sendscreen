@@ -11,9 +11,9 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='sendscreen',
-    version='1.7',
+    version='1.8',
     author='Hiroyuki Ohsaki',
-    author_email='ohsaki@lsnl.jp',
+    author_email='code@lsnl.jp',
     description='Display local desktop on remove host over LAN without VGA/HDMI cable',
     long_description=long_description,
     long_description_content_type='text/markdown',
